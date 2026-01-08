@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prototipo Bci App</title>
+    
+    <!-- 1. Estilos: Tailwind CSS y Fuentes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- 2. React y Babel (Para ejecutar el código) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- NOTA: He eliminado el script externo de Lucide para evitar el error de carga -->
+
+    <style>
+        /* Ajustes base */
+        body { 
+            font-family: 'Open Sans', sans-serif; 
+            background-color: #f0f2f5; 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            height: 100vh;
+            overflow: hidden; /* Evitar scroll doble en el iframe */
+        }
+        /* Utilidad para ocultar scrollbar */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <!-- Contenedor donde se montará la App -->
+    <div id="root" class="w-full h-full flex justify-center"></div>
+
+    <script type="text/babel">
+        // --- CONFIGURACIÓN INICIAL ---
+        const { useState, useEffect, useRef } = React;
+        
+        // --- DEFINICIÓN DE ICONOS (INLINE PARA EVITAR ERRORES) ---
+        // Esto reemplaza la librería externa y soluciona el "ReferenceError: lucideReact is not defined"
+        const IconBase = ({ size = 24, color = "currentColor", strokeWidth = 2, className = "", children, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            Search: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>,
+            Bell: (p) => <IconBase {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></IconBase>,
+            Menu: (p) => <IconBase {...p}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></IconBase>,
+            X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
+            ChevronRight: (p) => <IconBase {...p}><path d="m9 18 6-6-6-6"/></IconBase>,
+            Home: (p) => <IconBase {...p}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconBase>,
+            ArrowRightLeft: (p) => <IconBase {...p}><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></IconBase>,
+            CreditCard: (p) => <IconBase {...p}><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></IconBase>,
+            Gift: (p) => <IconBase {...p}><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.9 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></IconBase>,
+            MoreHorizontal: (p) => <IconBase {...p}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></IconBase>,
+            Shield: (p) => <IconBase {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></IconBase>,
+            Smartphone: (p) => <IconBase {...p}><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></IconBase>,
+            Zap: (p) => <IconBase {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></IconBase>,
+            FileText: (p) => <IconBase {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconBase>,
+            Phone: (p) => <IconBase {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconBase>,
+            Clock: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>,
+            HelpCircle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></IconBase>,
+            ChevronLeft: (p) => <IconBase {...p}><path d="m15 18-6-6 6-6"/></IconBase>,
+            Wallet: (p) => <IconBase {...p}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></IconBase>,
+            AlertTriangle: (p) => <IconBase {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></IconBase>,
+            Lock: (p) => <IconBase {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>,
+            EyeOff: (p) => <IconBase {...p}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></IconBase>,
+            Sparkles: (p) => <IconBase {...p}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 5H5"/><path d="M19 19v4"/><path d="M23 21h-4"/></IconBase>,
+            User: (p) => <IconBase {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>,
+            Copy: (p) => <IconBase {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></IconBase>,
+            QrCode: (p) => <IconBase {...p}><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></IconBase>,
+            Eye: (p) => <IconBase {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            Coins: (p) => <IconBase {...p}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></IconBase>,
+            Receipt: (p) => <IconBase {...p}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17V7"/></IconBase>,
+            HandCoins: (p) => <IconBase {...p}><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></IconBase>,
+            Plus: (p) => <IconBase {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
+            CircleDollarSign: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></IconBase>,
+            TrendingUp: (p) => <IconBase {...p}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></IconBase>,
+            ArrowRight: (p) => <IconBase {...p}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></IconBase>,
+            ShoppingBag: (p) => <IconBase {...p}><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></IconBase>,
+            CarFront: (p) => <IconBase {...p}><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H12c-.6 0-1.3.3-1.8.7-1 .9-2.2 2.3-2.2 2.3s-2.7.6-4.5 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><path d="M5 17v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-3h8v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-3"/><path d="M9 17h6"/><circle cx="6.5" cy="13.5" r=".5"/><circle cx="17.5" cy="13.5" r=".5"/></IconBase>,
+            Award: (p) => <IconBase {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></IconBase>,
+            PieChart: (p) => <IconBase {...p}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></IconBase>,
+            Settings: (p) => <IconBase {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            LogOut: (p) => <IconBase {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></IconBase>,
+            MessageSquare: (p) => <IconBase {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></IconBase>
+        };
+
+        // Extraemos los iconos del objeto local Icons
+        const { 
+            Search, Bell, Menu, X, ChevronRight, Home, ArrowRightLeft, CreditCard, 
+            Gift, MoreHorizontal, Shield, Smartphone, Zap, FileText, Phone, Clock, 
+            HelpCircle, ChevronLeft, Wallet, AlertTriangle, Lock, EyeOff, Sparkles, 
+            User, Copy, QrCode, Eye, Coins, Receipt, HandCoins, Plus, CircleDollarSign, 
+            TrendingUp, ArrowRight, ShoppingBag, CarFront, Award, PieChart, Settings, 
+            LogOut, MessageSquare 
+        } = Icons;
+
+        // --- CÓDIGO DE LA APP (IDÉNTICO A TU DISEÑO) ---
+
+        // --- DESIGN TOKENS (Base) ---
+        const TOKENS = {
+            colors: {
+                primary: '#007bc2',
+                text: '#333333',
+                bg: '#f0f2f5',
+            },
+            typography: {
+                fontFamily: '"Open Sans", sans-serif',
+            }
+        };
+
+        // --- SEARCH DATA & LOGIC ---
+        const EMERGENCY_ROOTS = ['rob', 'estaf', 'bloq', 'desc', 'fraud', 'segu', 'ayu', 'clon', 'perd', 'sos', 'emerg'];
+
+        const SUGGESTIONS = [
+            { id: 1, title: 'Bloquear tarjeta', category: 'Seguridad', icon: <Shield size={18} />, keywords: ['bloq', 'tarj', 'rob', 'perd'] },
+            { id: 2, title: 'Recuperar clave', category: 'Claves', icon: <Shield size={18} />, keywords: ['clav', 'recu', 'olvi'] },
+            { id: 3, title: 'Pagar cuenta de luz', category: 'Pagos', icon: <Zap size={18} />, keywords: ['pag', 'luz', 'serv'] },
+            { id: 4, title: 'Cartola histórica', category: 'Cuentas', icon: <FileText size={18} />, keywords: ['cart', 'hist', 'movi'] },
+            { id: 5, title: 'Saldo cuenta corriente', category: 'Cuentas', icon: <Wallet size={18} />, keywords: ['sald', 'cuen'] },
+        ];
+
+        const QUICK_ACTIONS = [
+            { id: 'transfer', label: 'Transferir', icon: <ArrowRightLeft size={20} className="text-white" />, color: 'bg-[#006EF5]' },
+            { id: 'pay', label: 'Pagar', icon: <Zap size={20} className="text-white" />, color: 'bg-[#006EF5]' },
+            { id: 'recharge', label: 'Recargar', icon: <Smartphone size={20} className="text-white" />, color: 'bg-[#006EF5]' },
+            { id: 'cards', label: 'Tarjetas', icon: <CreditCard size={20} className="text-white" />, color: 'bg-[#006EF5]' },
+        ];
+
+        const RECENT_HISTORY = [
+            { id: 1, title: 'Transferencia a Juan', type: 'Transferencia', time: 'Hace 2 horas' },
+            { id: 2, title: 'Pago autopista', type: 'Servicios', time: 'Ayer' },
+        ];
+
+        const MENU_ITEMS = [
+            { icon: <User size={22} />, label: "Mi información" },
+            { icon: <Settings size={22} />, label: "Mis configuraciones" },
+            { icon: <HelpCircle size={22} />, label: "Ayuda en línea" },
+            { icon: <Gift size={22} />, label: "Beneficios" },
+            { icon: <FileText size={22} />, label: "Vale vista" },
+            { icon: <MessageSquare size={22} />, label: "Danos tu opinión" },
+        ];
+
+        const App = () => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isOmniboxOpen, setIsOmniboxOpen] = useState(false);
+            const [isMenuOpen, setIsMenuOpen] = useState(false); 
+            const [searchResults, setSearchResults] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+            const [isCardBlocked, setIsCardBlocked] = useState(false);
+            const [predictiveText, setPredictiveText] = useState('');
+            const [activeTab, setActiveTab] = useState('cuentas');
+            
+            const inputRef = useRef(null);
+
+            // --- SEARCH ENGINE LOGIC ---
+            useEffect(() => {
+                if (searchTerm.length > 0) {
+                    setIsLoading(true);
+                    const lowerTerm = searchTerm.toLowerCase();
+                    
+                    const isEmergencyIntent = EMERGENCY_ROOTS.some(root => 
+                        lowerTerm.length >= 2 && (root.startsWith(lowerTerm) || lowerTerm.startsWith(root))
+                    );
+
+                    const results = SUGGESTIONS.filter(item => {
+                        const itemTitle = item.title.toLowerCase();
+                        const titleMatch = itemTitle.includes(lowerTerm);
+                        const keywordMatch = item.keywords?.some(k => k.startsWith(lowerTerm));
+                        return titleMatch || keywordMatch;
+                    }).sort((a, b) => {
+                        const aStarts = a.title.toLowerCase().startsWith(lowerTerm);
+                        const bStarts = b.title.toLowerCase().startsWith(lowerTerm);
+                        if (aStarts && !bStarts) return -1;
+                        if (!aStarts && bStarts) return 1;
+                        return 0;
+                    });
+
+                    let prediction = '';
+                    if (results.length > 0 && results[0].title.toLowerCase().startsWith(lowerTerm)) {
+                        prediction = results[0].title.slice(lowerTerm.length);
+                    }
+                    setPredictiveText(prediction);
+
+                    const timer = setTimeout(() => {
+                        setIsEmergencyMode(isEmergencyIntent);
+                        setSearchResults(results);
+                        setIsLoading(false);
+                    }, 200);
+                    
+                    return () => clearTimeout(timer);
+                } else {
+                    setSearchResults([]);
+                    setIsLoading(false);
+                    setIsEmergencyMode(false);
+                    setPredictiveText('');
+                }
+            }, [searchTerm]);
+
+            useEffect(() => {
+                if (isOmniboxOpen && inputRef.current) {
+                    setTimeout(() => inputRef.current.focus(), 100);
+                }
+            }, [isOmniboxOpen]);
+
+            const openOmnibox = () => setIsOmniboxOpen(true);
+            const closeOmnibox = () => {
+                setIsOmniboxOpen(false);
+                setSearchTerm('');
+                setIsEmergencyMode(false);
+            };
+            const toggleCardBlock = () => setIsCardBlocked(!isCardBlocked);
+            const openMenu = () => setIsMenuOpen(true);
+            const closeMenu = () => setIsMenuOpen(false);
+
+            return (
+                <div 
+                className="w-full flex justify-center bg-[#f0f2f5] text-[#333] h-full"
+                style={{ fontFamily: '"Open Sans", sans-serif' }}
+                >
+                {/* --- DEVICE FRAME --- */}
+                <div className="w-full max-w-[414px] bg-[#f4f8fb] h-full shadow-2xl relative flex flex-col overflow-hidden">
+                    
+                    {/* --- 1. BRAND STRIPE --- */}
+                    <div className="h-1.5 w-full shrink-0 bg-gradient-to-r from-[#e30613] via-[#009cdd] to-[#ffcd00]"></div>
+
+                    {/* --- 2. HEADER --- */}
+                    <header className="bg-white px-5 py-3 flex justify-between items-center shrink-0">
+                    <button className="text-[#666] active:scale-95 transition-transform" onClick={openMenu}>
+                        <Menu size={22} strokeWidth={2.5} />
+                    </button>
+                    
+                    {/* Empty placeholder to maintain justify-between or remove it if not needed */}
+                    <div></div>
+
+                    <div className="flex gap-5 text-[#666]">
+                        <QrCode size={22} />
+                        <Bell size={22} />
+                    </div>
+                    </header>
+
+                    {/* --- 3. TABS NAVIGATION --- */}
+                    <div className="flex bg-white border-b border-[#f0f0f0] shrink-0">
+                    {['Cuentas', 'Tarjetas', 'Finanzas'].map((tab) => (
+                        <div 
+                        key={tab}
+                        onClick={() => setActiveTab(tab.toLowerCase())}
+                        className={`flex-1 py-3.5 text-center text-sm font-semibold cursor-pointer relative transition-colors
+                            ${activeTab === tab.toLowerCase() ? 'text-[#007bc2]' : 'text-[#999]'}`}
+                        >
+                        {tab}
+                        {activeTab === tab.toLowerCase() && (
+                            <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#007bc2]"></div>
+                        )}
+                        </div>
+                    ))}
+                    </div>
+
+                    {/* --- 4. SEARCH AREA --- */}
+                    <div className="bg-white px-5 pt-2.5 pb-4 shadow-[0_4px_6px_-4px_rgba(0,0,0,0.05)] shrink-0 z-10">
+                    <button 
+                        onClick={openOmnibox}
+                        className="w-full bg-[#f2f4f6] rounded-lg py-2.5 px-3 flex items-center gap-2.5 text-sm text-[#333]"
+                    >
+                        <Search size={16} className="text-[#999]" />
+                        <span className="text-[#888] font-normal">¿En qué te puedo ayudar?</span>
+                    </button>
+                    </div>
+
+                    {/* --- 5. SCROLLABLE CONTENT --- */}
+                    <main className="flex-1 overflow-y-auto p-5 pb-24">
+
+                    {/* NEW CASHBACK CARD COMPONENT */}
+                    <div className="bg-white rounded-xl p-4 mb-4 flex items-center justify-between shadow-sm cursor-pointer hover:bg-gray-50 transition-colors border border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#e6f9ed] flex items-center justify-center text-[#0d8a4f]">
+                            <Award size={18} strokeWidth={2.5} />
+                            </div>
+                            <div>
+                            <p className="text-[13px] font-bold text-[#0d8a4f]">Cashback disponible</p>
+                            <p className="text-[16px] font-extrabold text-[#1a5c3d] tracking-tight">$150.000</p>
+                            </div>
+                        </div>
+                        <ChevronRight size={18} className="text-[#0d8a4f]" />
+                    </div>
+
+                    {/* ACCOUNT CARD */}
+                    <div className="bg-white rounded-2xl p-5 shadow-sm mb-6 relative">
+                        <div className="flex justify-between items-start mb-4">
+                        <div className="flex flex-col">
+                            <span className="text-[13px] font-semibold text-[#666] mb-0.5">Cuenta Corriente</span>
+                            <span className="text-[11px] text-[#999]">Nº ...789</span>
+                        </div>
+                        <MoreHorizontal className="text-[#ccc]" size={20} />
+                        </div>
+
+                        <div className="mb-3">
+                        <span className="text-xs text-[#888] mb-1 block">Saldo disponible</span>
+                        <div className="flex items-center justify-between">
+                            <span className="text-[34px] font-bold text-[#222] tracking-tight">$ 1.540.000</span>
+                            <button className="text-[#ccc] p-1"><Eye size={20} /></button>
+                        </div>
+                        </div>
+
+                        <div className="border-t border-[#f0f0f0] mt-5 pt-4 flex justify-between items-center">
+                        <button className="text-[#007bc2] text-[13px] font-bold hover:underline">Ver movimientos</button>
+                        <span className="text-xs text-[#999]">Sobregiro: $500.000</span>
+                        </div>
+                    </div>
+
+                    {/* WHITE CARDS CAROUSEL (VERTICAL STYLE) */}
+                    <div className="flex gap-4 overflow-x-auto pb-5 -mx-5 px-5 scrollbar-hide mb-4">
+                        
+                        {/* Card 1: Cashback Adidas */}
+                        <div className="min-w-[180px] p-5 bg-white rounded-2xl shadow-sm border border-[#f0f0f0] flex flex-col justify-between h-[260px] cursor-pointer active:scale-[0.98] transition-all">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 text-[#007bc2] flex items-center justify-center">
+                            <ShoppingBag size={20} />
+                        </div>
+                        <p className="text-[14px] font-bold text-[#333] leading-snug">
+                            Obtén 2% de cashback en todas tus compras en Adidas
+                        </p>
+                        </div>
+
+                        {/* Card 2: Avance */}
+                        <div className="min-w-[180px] p-5 bg-white rounded-2xl shadow-sm border border-[#f0f0f0] flex flex-col justify-between h-[260px] cursor-pointer active:scale-[0.98] transition-all">
+                        <div className="w-10 h-10 rounded-full bg-green-50 text-[#4CCC33] flex items-center justify-center">
+                            <HandCoins size={20} />
+                        </div>
+                        <p className="text-[14px] font-bold text-[#333] leading-snug">
+                            Solicita tu avance en cuotas a una tasa especial de 2,25%
+                        </p>
+                        </div>
+
+                        {/* Card 3: Seguro Auto */}
+                        <div className="min-w-[180px] p-5 bg-white rounded-2xl shadow-sm border border-[#f0f0f0] flex flex-col justify-between h-[260px] cursor-pointer active:scale-[0.98] transition-all">
+                        <div className="w-10 h-10 rounded-full bg-orange-50 text-[#E91619] flex items-center justify-center">
+                            <CarFront size={20} />
+                        </div>
+                        <p className="text-[14px] font-bold text-[#333] leading-snug">
+                            Simula tu seguro de auto al mejor precio desde $4.990 solo por hoy
+                        </p>
+                        </div>
+
+                    </div>
+
+                    {/* BLUE COMPONENT (SPECIAL INFO) */}
+                    <div className="rounded-2xl bg-[#00295C] p-5 relative overflow-hidden flex items-center justify-between shadow-md cursor-pointer group">
+                        <p className="relative z-10 text-white font-bold text-[15px] leading-tight max-w-[80%]">
+                            ¡Hola! Revisa esta información especial.
+                        </p>
+                        
+                        <div className="relative z-10 bg-white/10 w-10 h-10 rounded-full flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform">
+                            <ChevronRight size={24} className="text-white" />
+                        </div>
+                        
+                        {/* Decoración de fondo */}
+                        <div className="absolute -right-6 -bottom-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+                        <div className="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-[#00408F] to-transparent opacity-40"></div>
+                    </div>
+
+                    </main>
+
+                    {/* --- FULL SCREEN SIDE MENU --- */}
+                    {/* Menu Drawer */}
+                    <div 
+                    className={`absolute top-0 left-0 h-full w-full bg-white z-[70] shadow-2xl flex flex-col transition-transform duration-300 ease-out transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                    >
+                    {/* Menu Header */}
+                    <div className="bg-[#f0f2f5] p-6 pt-12 flex flex-col border-b border-gray-100 relative">
+                        <button onClick={closeMenu} className="absolute top-10 right-6 text-gray-400 p-1 hover:text-gray-600">
+                            <X size={28} />
+                        </button>
+                        
+                        <div className="flex items-center gap-4 mt-6">
+                            <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-[#007bc2] shadow-sm border border-gray-200">
+                            <User size={28} />
+                            </div>
+                            <div>
+                            <h2 className="text-xl font-bold text-[#333]">Hola, Catalina</h2>
+                            <p className="text-sm text-gray-500">Último acceso: Hoy, 10:30</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="flex-1 overflow-y-auto py-2">
+                        {MENU_ITEMS.map((item, index) => (
+                        <button 
+                            key={index}
+                            className="w-full px-6 py-4 flex items-center text-[#333] hover:bg-gray-50 transition-colors text-left group border-b border-gray-50 last:border-0"
+                            onClick={() => {
+                            closeMenu();
+                            }}
+                        >
+                            <div className="text-[#007bc2] mr-4">
+                            {item.icon}
+                            </div>
+                            <span className="font-semibold text-[15px]">{item.label}</span>
+                            <ChevronRight size={18} className="ml-auto text-gray-300" />
+                        </button>
+                        ))}
+                    </div>
+
+                    {/* Menu Footer */}
+                    <div className="p-6 border-t border-gray-100 bg-gray-50">
+                        <button className="flex items-center text-[#E91619] font-bold text-sm hover:underline w-full justify-center">
+                        <LogOut size={18} className="mr-2" />
+                        Cerrar Sesión
+                        </button>
+                        <p className="text-[10px] text-gray-400 mt-4 text-center">Versión 4.5.0</p>
+                    </div>
+                    </div>
+
+                    {/* --- BOTTOM NAV --- */}
+                    <nav className="bg-white border-t border-[#e5e5e5] h-[70px] flex justify-around items-end pb-3 absolute bottom-0 w-full z-50">
+                    <NavBtn icon={<Wallet size={20} />} label="Inicio" active />
+                    <NavBtn icon={<ArrowRightLeft size={20} />} label="Transferir" />
+                    
+                    <div className="w-[50px] h-[50px] bg-white border-2 border-[#ccc] rounded-full flex items-center justify-center -translate-y-4 shadow-sm text-[#666]">
+                        <Plus size={24} />
+                    </div>
+
+                    <NavBtn icon={<CircleDollarSign size={20} />} label="Créditos" />
+                    <NavBtn icon={<TrendingUp size={20} />} label="Inversiones" />
+                    </nav>
+
+                    {/* --- OMNIBOX MODAL --- */}
+                    {isOmniboxOpen && (
+                    <div className="absolute inset-0 z-[60] flex flex-col bg-[#F0F3F5] animate-in slide-in-from-bottom-5 duration-300">
+                        {/* Header Omnibox */}
+                        <div className={`px-5 pt-4 pb-2 shadow-sm z-10 transition-colors duration-500 ease-out ${isEmergencyMode ? 'bg-red-50' : 'bg-white'}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                            <button onClick={closeOmnibox} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full">
+                                <ChevronLeft size={24} />
+                            </button>
+                            <span className={`font-semibold text-lg transition-colors duration-300 ${isEmergencyMode ? 'text-[#E91619]' : 'text-[#1F292E]'}`}>
+                            {isEmergencyMode ? 'Asistencia de Seguridad' : 'Buscador'}
+                            </span>
+                            {isEmergencyMode && (
+                            <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-[#E91619] bg-red-100 px-2 py-1 rounded-full animate-pulse">
+                                <AlertTriangle size={10} /> MODO SEGURO
+                            </span>
+                            )}
+                        </div>
+                        
+                        <div className="relative mb-2">
+                            <Search className={`absolute left-4 top-3.5 w-5 h-5 transition-colors duration-300 ${isEmergencyMode ? 'text-[#E91619]' : searchTerm ? 'text-[#007bc2]' : 'text-gray-400'}`} />
+                            <div className="relative w-full">
+                                <input
+                                ref={inputRef}
+                                type="text"
+                                autoComplete="off"
+                                placeholder="¿En qué te puedo ayudar?"
+                                className={`w-full pl-12 pr-10 py-3 rounded-lg text-[#333] font-medium focus:outline-none focus:ring-2 transition-all relative z-10 bg-transparent
+                                    ${isEmergencyMode 
+                                    ? 'ring-[#E91619] focus:ring-[#E91619]' 
+                                    : 'focus:ring-[#007bc2]'}`}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{ backgroundColor: isEmergencyMode ? 'rgba(255,255,255,0.8)' : '#F3F4F6' }}
+                                />
+                                {searchTerm && predictiveText && !isEmergencyMode && (
+                                    <div className="absolute top-0 left-0 pl-12 py-3 w-full h-full pointer-events-none z-0 flex items-center" aria-hidden="true">
+                                        <span className="text-transparent">{searchTerm}</span>
+                                        <span className="text-gray-400 opacity-60">{predictiveText}</span>
+                                    </div>
+                                )}
+                            </div>
+                            {searchTerm && (
+                            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 z-20">
+                                <X size={18} />
+                            </button>
+                            )}
+                        </div>
+                        </div>
+
+                        {/* Content Omnibox */}
+                        <div className="flex-1 overflow-y-auto p-5">
+                        {isLoading && (
+                            <div className="flex flex-col items-center justify-center py-10 opacity-60">
+                            <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin mb-4 ${isEmergencyMode ? 'border-[#E91619]' : 'border-[#007bc2]'}`}></div>
+                            <span className="text-sm font-medium text-gray-500">Analizando...</span>
+                            </div>
+                        )}
+
+                        {!isLoading && isEmergencyMode && (
+                            <div className="animate-in slide-in-from-bottom-2 duration-500">
+                            <div className="bg-white rounded-xl shadow-lg border-l-4 border-[#E91619] overflow-hidden mb-6 relative">
+                                <div className="p-5">
+                                    <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0 text-[#E91619]">
+                                        <Shield size={24} strokeWidth={2.5} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-bold text-[#1F292E]">Control de Seguridad</h3>
+                                        <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                                            Detectamos una posible situación de riesgo. ¿Quieres proteger tu tarjeta ahora?
+                                        </p>
+                                    </div>
+                                    </div>
+
+                                    <div className="mt-6 bg-gray-50 rounded-lg p-4 flex items-center justify-between border border-gray-100 transition-colors duration-300" style={{backgroundColor: isCardBlocked ? '#FEF2F2' : '#F9FAFB'}}>
+                                    <div className="flex items-center gap-3">
+                                        {isCardBlocked ? <Lock className="text-[#E91619]" /> : <CreditCard className="text-gray-400" />}
+                                        <div>
+                                            <p className="text-sm font-bold text-[#1F292E]">Visa débito •• 3492</p>
+                                            <p className={`text-xs font-medium transition-colors ${isCardBlocked ? 'text-[#E91619]' : 'text-green-600'}`}>
+                                            {isCardBlocked ? 'Bloqueada temporalmente' : 'Activa'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" className="sr-only peer" checked={isCardBlocked} onChange={toggleCardBlock} />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#E91619]"></div>
+                                    </label>
+                                    </div>
+                                    
+                                    <div className={`overflow-hidden transition-all duration-500 ${isCardBlocked ? 'max-h-20 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+                                    <button className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-[#E91619] text-white font-semibold text-sm shadow-md hover:bg-red-700 transition-colors">
+                                        <EyeOff size={16} />
+                                        Denunciar Movimientos
+                                    </button>
+                                    </div>
+                                    {!isCardBlocked && (
+                                        <button className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-full border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors">
+                                            <EyeOff size={16} />
+                                            Desconocer compra / Fraude
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            </div>
+                        )}
+
+                        {!isLoading && !isEmergencyMode && searchTerm.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-sm overflow-hidden animate-fade-in">
+                                {searchResults.length > 0 ? (
+                                <ul>
+                                    {searchResults.map((item, index) => (
+                                    <li key={item.id} className="border-b border-gray-100 last:border-0">
+                                        <button 
+                                            onClick={() => setSearchTerm(item.title)}
+                                            className="w-full px-4 py-4 flex items-center hover:bg-blue-50 transition-colors text-left group relative"
+                                        >
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-all
+                                            ${index === 0 ? 'bg-[#007bc2] text-white shadow-md' : 'bg-blue-50 text-[#007bc2] group-hover:bg-white'}`}>
+                                            {item.icon}
+                                        </div>
+                                        <div>
+                                            <p className={`text-sm font-bold ${index === 0 ? 'text-[#007bc2]' : 'text-[#333]'}`}>{item.title}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">{item.category}</p>
+                                        </div>
+                                        {index === 0 && <Sparkles size={16} className="ml-auto text-[#007bc2] opacity-50" />}
+                                        </button>
+                                    </li>
+                                    ))}
+                                </ul>
+                                ) : (
+                                <div className="p-8 text-center">
+                                    <HelpCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                    <p className="text-gray-500 font-medium">No encontramos "{searchTerm}"</p>
+                                </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!isLoading && searchTerm.length === 0 && (
+                            <div className="space-y-6 animate-fade-in">
+                            <section>
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Accesos Directos</h4>
+                                <div className="grid grid-cols-4 gap-3">
+                                {QUICK_ACTIONS.map((action) => (
+                                    <button key={action.id} className="flex flex-col items-center group">
+                                    <div className={`w-14 h-14 ${action.color} rounded-2xl flex items-center justify-center shadow-md group-active:scale-95 transition-all mb-2`}>
+                                        {action.icon}
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-gray-600">{action.label}</span>
+                                    </button>
+                                ))}
+                                </div>
+                            </section>
+                            <section className="bg-white rounded-xl shadow-sm p-1">
+                                <div className="px-4 py-3 border-b border-gray-50 flex justify-between items-center">
+                                    <h4 className="text-sm font-bold text-[#333]">Lo último que viste</h4>
+                                    <button className="text-[10px] font-bold text-[#007bc2] uppercase">Borrar</button>
+                                </div>
+                                {RECENT_HISTORY.map((item) => (
+                                    <button key={item.id} className="w-full px-4 py-3 flex items-center hover:bg-gray-50 transition-colors text-left border-b border-gray-50 last:border-0">
+                                    <Clock size={16} className="text-gray-400 mr-3" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-gray-700">{item.title}</p>
+                                        <p className="text-[10px] text-gray-400">{item.type} • {item.time}</p>
+                                    </div>
+                                    <ChevronRight size={16} className="text-gray-300" />
+                                    </button>
+                                ))}
+                            </section>
+                            </div>
+                        )}
+                        </div>
+                    </div>
+                    )}
+
+                </div>
+                </div>
+            );
+        };
+
+        const NavBtn = ({ icon, label, active }) => (
+            <button className={`flex flex-col items-center gap-1 ${active ? 'text-[#002d72]' : 'text-[#999]'}`}>
+                {icon}
+                <span className="text-[10px] font-semibold">{label}</span>
+            </button>
+        );
+
+        // --- RENDERIZADO ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
