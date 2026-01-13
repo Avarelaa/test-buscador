@@ -969,7 +969,10 @@
                                             <span className="text-sm font-semibold text-[#333]">Configurar tarjeta</span>
                                             <ChevronRight className="ml-auto text-gray-300" size={20} />
                                         </div>
-                                        <div className="p-4 border-b border-gray-100 flex items-center gap-3 cursor-pointer hover:bg-gray-50">
+                                        <div 
+                                            className="p-4 border-b border-gray-100 flex items-center gap-3 cursor-pointer hover:bg-gray-50"
+                                            onClick={() => setShowSuccessModal(true)}
+                                        >
                                             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[#007bc2]">
                                                 <Lock size={20} />
                                             </div>
